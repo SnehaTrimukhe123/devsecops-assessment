@@ -1,35 +1,58 @@
 pipeline {
     agent any
-    environment {
-        ECR_REPO = "162186035982.dkr.ecr.us-west-2.amazonaws.com/web-app-image"
-    }
+
     stages {
-        stage('Build') {
+        stage('Build Web') {
             steps {
                 script {
-                    def tag = env.BRANCH_NAME == 'master' ? 'latest' : 'develop'
-                    echo "Building for ${env.BRANCH_NAME} branch with tag ${tag}..."
-                    sh "docker build -t ${ECR_REPO}:${tag} ."
+                    dir('web') {
+                        echo 'Building web...'
+                        // Add your web build steps here
+                        sh 'npm install'
+                        sh 'npm run build'
+                    }
                 }
             }
         }
-        stage('Push') {
+        stage('Build API') {
             steps {
                 script {
-                    def tag = env.BRANCH_NAME == 'master' ? 'latest' : 'develop'
-                    echo "Pushing for ${env.BRANCH_NAME} branch with tag ${tag}..."
-                    sh "docker push ${ECR_REPO}:${tag}"
+                    dir('api') {
+                        echo 'Building API...'
+                        // Add your API build steps here
+                        sh 'pip install -r requirements.txt'
+                        sh 'python app.py'
+                    }
+                }
+            }
+        }
+        stage('Test Web') {
+            steps {
+                script {
+                    dir('web') {
+                        echo 'Testing web...'
+                        // Add your web test steps here
+                        sh 'npm test'
+                    }
+                }
+            }
+        }
+        stage('Test API') {
+            steps {
+                script {
+                    dir('api') {
+                        echo 'Testing API...'
+                        // Add your API test steps here
+                        sh 'python test.py'
+                    }
                 }
             }
         }
         stage('Deploy') {
             steps {
-                script {
-                    def tag = env.BRANCH_NAME == 'master' ? 'latest' : 'develop'
-                    def namespace = env.BRANCH_NAME == 'master' ? 'prod' : 'dev'
-                    echo "Deploying to ${namespace} namespace with tag ${tag}..."
-                    sh "helm upgrade --install web-app ./web --namespace ${namespace} --set image.repository=${ECR_REPO} --set image.tag=${tag}"
-                }
+                echo 'Deploying...'
+                // Add your deploy steps here
+                // Example: sh 'deploy.sh'
             }
         }
     }
