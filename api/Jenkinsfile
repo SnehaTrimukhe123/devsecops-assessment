@@ -1,31 +1,37 @@
 pipeline {
     agent any
+    environment {
+        ECR_REPO = "162186035982.dkr.ecr.us-west-2.amazonaws.com/api-app-image"
+    }
     stages {
         stage('Build') {
             steps {
                 script {
-                    if (env.BRANCH_NAME == 'develop') {
-                        echo 'Building for develop branch...'
-                        sh 'docker build -t 162186035982.dkr.ecr.us-west-2.amazonaws.com/api-app-image:develop .'
-                    } else if (env.BRANCH_NAME == 'master') {
-                        echo 'Building for master branch...'
-                        sh 'docker build -t 162186035982.dkr.ecr.us-west-2.amazonaws.com/api-app-image:latest .'
-                    }
+                    def tag = env.BRANCH_NAME == 'master' ? 'latest' : 'develop'
+                    echo "Building for ${env.BRANCH_NAME} branch with tag ${tag}..."
+                    sh "docker build -t ${ECR_REPO}:${tag} ."
                 }
             }
         }
         stage('Push') {
             steps {
                 script {
-                    if (env.BRANCH_NAME == 'develop') {
-                        echo 'Pushing for develop branch...'
-                        sh 'docker push 162186035982.dkr.ecr.us-west-2.amazonaws.com/api-app-image:develop'
-                    } else if (env.BRANCH_NAME == 'master') {
-                        echo 'Pushing for master branch...'
-                        sh 'docker push 162186035982.dkr.ecr.us-west-2.amazonaws.com/api-app-image:latest'
-                    }
+                    def tag = env.BRANCH_NAME == 'master' ? 'latest' : 'develop'
+                    echo "Pushing for ${env.BRANCH_NAME} branch with tag ${tag}..."
+                    sh "docker push ${ECR_REPO}:${tag}"
+                }
+            }
+        }
+        stage('Deploy') {
+            steps {
+                script {
+                    def tag = env.BRANCH_NAME == 'master' ? 'latest' : 'develop'
+                    def namespace = env.BRANCH_NAME == 'master' ? 'prod' : 'dev'
+                    echo "Deploying to ${namespace} namespace with tag ${tag}..."
+                    sh "helm upgrade --install api-app ./api --namespace ${namespace} --set image.repository=${ECR_REPO} --set image.tag=${tag}"
                 }
             }
         }
     }
 }
+
