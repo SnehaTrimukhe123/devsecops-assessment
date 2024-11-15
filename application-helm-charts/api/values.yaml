@@ -1,35 +1,3 @@
-replicaCount: 2
-
-image:
-  repository: 162186035982.dkr.ecr.us-west-2.amazonaws.com/api-app-image
-  tag: "latest"
-  pullPolicy: IfNotPresent
-
-service:
-  type: ClusterIP
-  port: 8083
-
-ingress:
-  enabled: true
-  className: ""
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
-  hosts:
-    - host: api.example.com
-      paths:
-        - path: /
-          pathType: Prefix
-  tls: []
-
-resources:
-  limits:
-    cpu: 100m
-    memory: 128Mi
-  requests:
-    cpu: 100m
-    memory: 128Mi
-
-nodeSelector: {}
-tolerations: []
-affinity: {}
-
+version https://git-lfs.github.com/spec/v1
+oid sha256:f37fac00127e9b6ea8f1f6cc59579d31dcd2b3af49e6f489e37b6df30a37e8bd
+size 539
