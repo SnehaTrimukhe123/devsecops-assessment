@@ -30,7 +30,7 @@ The project is a voting application with the following components:
   - Create the table using the command
     `CREATE TABLE IF NOT EXISTS votes (id VARCHAR(255) NOT NULL UNIQUE, vote VARCHAR(255) NOT NULL, created_at timestamp default NULL)`
   - Add the below environment variables for kubernetes deployment
-    - `PGDATABASE: postgres`
-    - `PGUSER: postgres`
-    - `PGPASSWORD: postgres`
+    - `POSTGRES_DB: postgres`
+    - `POSTGRES_PASSWORD: postgres`
+    - `POSTGRES_USER: postgres`
     
