@@ -1,0 +1,67 @@
+pipeline {
+    agent any
+
+    environment {
+        AWS_REGION = 'us-east-2'  // AWS region for ECR
+        ECR_REPOSITORY = 'database-dev'  // ECR repository name for database application
+        DOCKER_IMAGE = '162186035982.dkr.ecr.us-east-2.amazonaws.com/database-dev'  // Full ECR URL for the Database image
+        IMAGE_TAG = "${GIT_COMMIT}"  // Use Git commit hash as image tag
+        NAMESPACE = 'dev'  // Namespace for Helm deployment
+        AWS_CREDENTIALS = 'aws-credentials'  // Jenkins AWS credentials ID
+    }
+
+    stages {
+        stage('Checkout Code') {
+            steps {
+                script {
+                    // Checkout code from Git repository
+                    git branch: 'main', url: 'https://github.com/yourusername/devsecops-assessment-database.git'  // Replace with actual Git repo URL
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    // Build Docker image with Git commit hash tag
+                    sh 'docker build -t $DOCKER_IMAGE:$IMAGE_TAG .'
+                }
+            }
+        }
+
+        stage('Push to ECR') {
+            steps {
+                script {
+                    // Login to AWS ECR using credentials
+                    withCredentials([aws(credentialsId: '$AWS_CREDENTIALS')]) {
+                        sh '''
+                            aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $DOCKER_IMAGE
+                        '''
+                    }
+                    
+                    // Push the Docker image to ECR with the commit tag
+                    sh 'docker push $DOCKER_IMAGE:$IMAGE_TAG'
+                }
+            }
+        }
+
+        stage('Deploy to Dev') {
+            steps {
+                script {
+                    // Helm upgrade/install to Kubernetes in 'dev' namespace
+                    sh 'helm upgrade --install database-dev application-helm-charts/database --namespace $NAMESPACE'
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Pipeline succeeded: Image pushed to ECR and deployed to Kubernetes."
+        }
+
+        failure {
+            echo "Pipeline failed."
+        }
+    }
+}
