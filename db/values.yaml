@@ -1,0 +1,18 @@
+serviceAccount:
+  create: true  # Set to true to create a service account
+
+# Add other necessary values like database configurations
+image:
+  repository: "postgres"  # Replace with your image repo if necessary
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "250m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+
+# Configure any other required settings like persistence, environment variables, etc.
