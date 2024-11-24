@@ -2,54 +2,85 @@ pipeline {
     agent any
 
     environment {
-        AWS_REGION = 'us-east-2'  // AWS region for ECR
-        ECR_REPOSITORY = 'web-dev'  // ECR repository name for Web application
-        DOCKER_IMAGE = '162186035982.dkr.ecr.us-east-2.amazonaws.com/web-dev'  // Full ECR URL for the Web image
-        IMAGE_TAG = "${GIT_COMMIT}"  // Use Git commit hash as image tag
-        NAMESPACE = 'dev'  // Namespace for Helm deployment
-        AWS_CREDENTIALS = 'aws-credentials'  // Jenkins AWS credentials ID
+        AWS_REGION = 'us-east-2' // AWS region for ECR
+        ECR_REPOSITORY = 'web-dev' // ECR repository name for Web application
+        DOCKER_IMAGE = '162186035982.dkr.ecr.us-east-2.amazonaws.com/web-dev' // Full ECR URL for the Web image
+        IMAGE_TAG = "${GIT_COMMIT}-${BUILD_NUMBER}" // Use Git commit hash and build number as image tag
+        NAMESPACE = 'web' // Kubernetes namespace
+        AWS_CREDENTIALS = 'aws-credentials' // Jenkins AWS credentials ID
     }
 
     stages {
-        stage('Checkout Code') {
+        stage('Clean Workspace') {
             steps {
-                script {
-                    // Checkout code from Git repository
-                    git branch: 'main', url: 'https://github.com/yourusername/devsecops-assessment-web.git'  // Replace with actual Git repo URL
+                cleanWs()
+            }
+        }
+
+        stage('Static Code Analysis') {
+            parallel {
+                stage('SonarQube Analysis') {
+                    steps {
+                        script {
+                            withSonarQubeEnv('SonarQube') {
+                                sh 'sonar-scanner'
+                            }
+                        }
+                        archiveArtifacts artifacts: '**/sonarqube_result.png'
+                    }
                 }
+                stage('OWASP Dependency-Check') {
+                    steps {
+                        sh 'dependency-check --project web-app --out dependency-check-report.xml'
+                        archiveArtifacts artifacts: 'dependency-check-report.xml'
+                    }
+                }
+            }
+        }
+
+        stage('Run Tests') {
+            steps {
+                sh 'npm install'
+                sh 'npm run test'
+                junit 'tests/*.xml'
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                script {
-                    // Build Docker image
-                    sh 'docker build -t $DOCKER_IMAGE:$IMAGE_TAG .'
-                }
+                sh 'docker build -t $DOCKER_IMAGE:$IMAGE_TAG .'
+                archiveArtifacts artifacts: '**/docker_image_tagging.png'
             }
         }
 
-        stage('Push to ECR') {
+        stage('Anchore Grype Image Scan') {
+            steps {
+                sh '''
+                grype $DOCKER_IMAGE:$IMAGE_TAG -o json > anchore-scan.json
+                '''
+                archiveArtifacts artifacts: 'anchore-scan.json'
+            }
+        }
+
+        stage('Push Docker Image to ECR') {
             steps {
                 script {
-                    // Login to AWS ECR
-                    withCredentials([aws(credentialsId: '$AWS_CREDENTIALS')]) {
+                    withCredentials([aws(credentialsId: AWS_CREDENTIALS)]) {
                         sh '''
                             aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $DOCKER_IMAGE
                         '''
                     }
-                    
-                    // Push the Docker image to ECR
                     sh 'docker push $DOCKER_IMAGE:$IMAGE_TAG'
                 }
             }
         }
 
-        stage('Deploy to Dev') {
+        stage('Deploy to Kubernetes') {
             steps {
                 script {
-                    // Helm upgrade/install to Kubernetes in 'dev' namespace
-                    sh 'helm upgrade --install web-dev application-helm-charts/web --namespace $NAMESPACE'
+                    sh '''
+                        helm upgrade --install web-dev application-helm-charts/web --namespace $NAMESPACE --set image.tag=$IMAGE_TAG
+                    '''
                 }
             }
         }
@@ -57,11 +88,14 @@ pipeline {
 
     post {
         success {
-            echo "Pipeline succeeded: Image pushed to ECR and deployed to Kubernetes."
+            mail to: 'snehatrimukhe11@gmail.com',
+                 subject: "Build Success: ${env.BUILD_NUMBER} - Web",
+                 body: "Web Build ${env.BUILD_NUMBER} completed successfully for ${env.JOB_NAME}. Commit: ${env.GIT_COMMIT}"
         }
-
         failure {
-            echo "Pipeline failed."
+            mail to: 'snehatrimukhe11@gmail.com',
+                 subject: "Build Failed: ${env.BUILD_NUMBER} - Web",
+                 body: "Web Build ${env.BUILD_NUMBER} failed for ${env.JOB_NAME}. Commit: ${env.GIT_COMMIT}"
         }
     }
 }
