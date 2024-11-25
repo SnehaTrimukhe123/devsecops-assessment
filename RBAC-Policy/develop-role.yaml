@@ -1,0 +1,9 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  # Name of the role
+  name: devops-role
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services", "deployments", "nodes", "namespaces"]
+    verbs: ["*"]
