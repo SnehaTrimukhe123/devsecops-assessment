@@ -3,7 +3,9 @@ pipeline {
 
     environment {
         AWS_REGION = 'us-east-2'
-        AWS_CREDENTIALS = 'aws-credentials'  // Jenkins AWS credentials ID
+        AWS_CREDENTIALS = 'aws-credentials' 
+        CLUSTER_NAME = 'DevSecOps-Cluster'  
+        EMAIL_ID = 'snehatrimukhe11@gmail.com'  
     }
 
     parameters {
@@ -14,8 +16,8 @@ pipeline {
         stage('Checkout Code') {
             steps {
                 script {
-                    // Checkout the appropriate module
-                    git branch: 'main', url: "https://github.com/yourusername/devsecops-assessment-${params.MODULE}.git"
+                    
+                    git branch: 'master', url: "https://github.com/SnehaTrimukhe123/devsecops-assessment.git"
                 }
             }
         }
@@ -23,11 +25,8 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    // Define environment variables dynamically
-                    def DOCKER_IMAGE = "162186035982.dkr.ecr.us-east-2.amazonaws.com/${params.MODULE}-dev"
+                    def DOCKER_IMAGE = "162186035982.dkr.ecr.us-east-2.amazonaws.com/${params.MODULE}-prod"
                     def IMAGE_TAG = "${GIT_COMMIT}"
-                    
-                    // Build Docker image
                     sh "docker build -t ${DOCKER_IMAGE}:${IMAGE_TAG} ."
                 }
             }
@@ -36,9 +35,7 @@ pipeline {
         stage('Push to ECR') {
             steps {
                 script {
-                    def DOCKER_IMAGE = "162186035982.dkr.ecr.us-east-2.amazonaws.com/${params.MODULE}-dev"
-
-                    // Login to AWS ECR and push the image
+                    def DOCKER_IMAGE = "162186035982.dkr.ecr.us-east-2.amazonaws.com/${params.MODULE}-prod"
                     withCredentials([aws(credentialsId: AWS_CREDENTIALS)]) {
                         sh """
                             aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${DOCKER_IMAGE}
@@ -49,14 +46,13 @@ pipeline {
             }
         }
 
-        stage('Deploy to Dev') {
+        stage('Deploy to Production') {
             steps {
                 script {
-                    def NAMESPACE = 'dev'
+                    def NAMESPACE = 'prod'
                     def HELM_CHART = "application-helm-charts/${params.MODULE}"
 
-                    // Helm upgrade/install to Kubernetes in 'dev' namespace
-                    sh "helm upgrade --install ${params.MODULE}-dev ${HELM_CHART} --namespace ${NAMESPACE}"
+                    sh "helm upgrade --install ${params.MODULE}-prod ${HELM_CHART} --namespace ${NAMESPACE}"
                 }
             }
         }
@@ -64,10 +60,13 @@ pipeline {
 
     post {
         success {
-            echo "Pipeline succeeded: ${params.MODULE} module built, pushed, and deployed successfully."
+            echo "Pipeline succeeded: ${params.MODULE} module built, pushed, and deployed successfully to Production."
+            mail to: snehatrimukhe11@gmail.com, subject: "Jenkins Build Success - ${params.MODULE}", body: "The ${params.MODULE} module was successfully built, pushed to ECR, and deployed to the production environment."
         }
         failure {
-            echo "Pipeline failed for ${params.MODULE} module."
+            echo "Pipeline failed for ${params.MODULE} module in Production."
+            mail to: snehatrimukhe11@gmail.com, subject: "Jenkins Build Failed - ${params.MODULE}", body: "The ${params.MODULE} module failed during the build, push, or deployment process to the production environment."
         }
     }
 }
+
